@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Typprüfung, Lint, Tests, Build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typprüfung
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit-Tests
+        run: npm test
+      - name: Build (Web und Einzeldatei)
+        run: |
+          npx vite build
+          npx vite build --mode standalone
+      - name: Gebaute Seite im Repo aktuell?
+        run: |
+          node scripts/build-pages.mjs
+          if ! git diff --quiet -- index.html HPSim-Studio.html; then
+            echo "::warning::index.html/HPSim-Studio.html sind nicht aktuell – bitte 'npm run build:pages' ausführen und committen."
+          fi
+      - name: Playwright-Browser installieren
+        run: npx playwright install --with-deps chromium
+      - name: End-to-End-Tests
+        run: npm run test:e2e
+      - name: Testbericht hochladen
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7

@@ -30,7 +30,7 @@ export function importBytes(name: string, bytes: Uint8Array): ImportResult {
     const res = importLegacyHps(bytes, title);
     return { doc: res.doc, warnings: res.warnings, kind: 'legacy' };
   }
-  const text = new TextDecoder('utf-8').decode(bytes).replace(/^﻿/, '');
+  const text = new TextDecoder('utf-8').decode(bytes).replace(/^\uFEFF/, '');
   const trimmed = text.trimStart();
   if (trimmed.startsWith('{')) {
     const res = parseNative(text);

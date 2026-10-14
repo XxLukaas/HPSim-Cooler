@@ -1,0 +1,80 @@
+# Baut die Desktop-Version (Windows, macOS, Linux).
+#  - Manuell (Actions → „Desktop-Release“ → Run workflow): Installer als Artefakte zum Herunterladen.
+#  - Beim Push eines Tags „v*“ (z. B. v2.0.0): zusätzlich ein GitHub-Release mit allen Dateien.
+name: Desktop-Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Desktop (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: --win
+          - os: macos-latest
+            target: --mac
+          - os: ubuntu-latest
+            target: --linux
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+      - name: Web-App bauen
+        run: |
+          npm ci
+          npm run build:standalone
+          node scripts/prepare-desktop.mjs
+      - name: Desktop-App bauen
+        working-directory: desktop
+        env:
+          # ohne Zertifikat: unsignierte Builds
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npm ci
+          npx electron-builder ${{ matrix.target }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hpsim-studio-${{ matrix.os }}
+          path: |
+            desktop/dist/*.exe
+            desktop/dist/*.dmg
+            desktop/dist/*.zip
+            desktop/dist/*.AppImage
+            desktop/dist/*.deb
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: GitHub-Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+      - name: Offline-Version beilegen
+        run: cp HPSim-Studio.html release/
+      - uses: softprops/action-gh-release@v2
+        with:
+          name: HPSim Studio ${{ github.ref_name }}
+          generate_release_notes: true
+          files: release/*

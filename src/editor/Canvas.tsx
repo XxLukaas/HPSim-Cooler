@@ -47,6 +47,8 @@ import { NetContent, resolveLabelOffset, type RenderState } from './NetRender';
 import { Handles, handlesFor, PreviewLine, SelectionBox, TokenAnimation } from './Overlays';
 import { paletteFor } from './palette';
 
+const DEFAULT_VIEW = { x: 0, y: 0, zoom: 1 };
+
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; vx: number; vy: number; moved: boolean; clickId: Id | null }
   | {
@@ -136,7 +138,7 @@ export function Canvas() {
   const pinch = useRef<{ dist: number; mid: { x: number; y: number }; view: { x: number; y: number; zoom: number } } | null>(null);
 
   const doc = tab?.doc ?? null;
-  const view = tab?.view ?? { x: 0, y: 0, zoom: 1 };
+  const view = tab?.view ?? DEFAULT_VIEW;
   const mode = tab?.mode ?? 'edit';
 
   // Größe der Zeichenfläche beobachten
@@ -292,7 +294,6 @@ export function Canvas() {
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', blur);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [arcPending, polyDraft, editing]);
 
   if (!tab || !doc) return <div className="canvas-host" ref={hostRef} />;

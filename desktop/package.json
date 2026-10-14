@@ -1,0 +1,87 @@
+{
+  "name": "hpsim-studio-desktop",
+  "private": true,
+  "version": "2.0.0",
+  "description": "HPSim Studio – Petri-Netz-Editor und -Simulator (Desktop-Version)",
+  "author": "HPSim Studio",
+  "license": "MIT",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --publish never"
+  },
+  "devDependencies": {
+    "electron": "44.4.5",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "de.hpsim.studio",
+    "productName": "HPSim Studio",
+    "artifactName": "HPSim-Studio-${version}-${os}-${arch}.${ext}",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.cjs",
+      "preload.cjs",
+      "app/**/*"
+    ],
+    "fileAssociations": [
+      {
+        "ext": "hpsim",
+        "name": "HPSim-Studio-Netz",
+        "description": "Petri-Netz (HPSim Studio)",
+        "mimeType": "application/x-hpsim-studio",
+        "role": "Editor"
+      },
+      {
+        "ext": "hps",
+        "name": "HPSim-1.x-Netz",
+        "description": "Petri-Netz (HPSim 1.x)",
+        "role": "Editor"
+      },
+      {
+        "ext": "pnml",
+        "name": "PNML-Netz",
+        "description": "Petri-Netz (PNML)",
+        "role": "Editor"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "HPSim Studio"
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "category": "public.app-category.education"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "category": "Education",
+      "maintainer": "HPSim Studio",
+      "executableName": "hpsim-studio"
+    },
+    "publish": null
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/XxLukaas/HPSim-Cooler.git"
+  },
+  "homepage": "https://xxlukaas.github.io/HPSim-Cooler/"
+}

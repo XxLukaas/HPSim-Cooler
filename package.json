@@ -16,7 +16,10 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "examples": "node scripts/embed-legacy-examples.mjs",
-    "build:pages": "npm run build:standalone && node scripts/build-pages.mjs"
+    "build:pages": "npm run build:standalone && node scripts/build-pages.mjs",
+    "desktop:prepare": "npm run build:standalone && node scripts/prepare-desktop.mjs",
+    "desktop:dev": "npm run desktop:prepare && npm --prefix desktop start",
+    "desktop:build": "npm run desktop:prepare && npm --prefix desktop run dist"
   },
   "dependencies": {
     "immer": "10.2.0",
