@@ -60,7 +60,7 @@ export function openBytes(name: string, bytes: Uint8Array, path?: string): boole
   try {
     const res = importBytes(name, bytes);
     const fileName = res.kind === 'native' ? path ?? name : null;
-    if (res.kind !== 'native') res.doc.meta.title = baseName(name);
+    if (res.kind === 'legacy') res.doc.meta.title = baseName(name);
     openDocument(res.doc, fileName, res.kind === 'native');
     rememberRecent(res.doc, name);
     const what = res.kind === 'legacy' ? 'HPSim-1.x-Netz importiert' : res.kind === 'pnml' ? 'PNML-Netz importiert' : 'Netz geöffnet';

@@ -72,6 +72,8 @@ export const MENUS: { label: string; items: () => MenuItem[] }[] = [
           actionItem('arrange.distributeV'),
         ],
       },
+      actionItem('arrange.autoLayout'),
+      SEP,
       actionItem('arrange.rotate'),
       actionItem('arrange.reverse'),
       actionItem('arrange.straighten'),
@@ -120,7 +122,17 @@ export const MENUS: { label: string; items: () => MenuItem[] }[] = [
   },
   {
     label: 'Analyse',
-    items: () => [actionItem('mode.analysis'), actionItem('analysis.validate'), SEP, actionItem('file.exportText')],
+    items: () => [
+      actionItem('mode.analysis'),
+      SEP,
+      actionItem('analysis.overview'),
+      actionItem('analysis.graph'),
+      actionItem('analysis.invariants'),
+      actionItem('analysis.matrix'),
+      SEP,
+      actionItem('analysis.validate'),
+      actionItem('file.exportText'),
+    ],
   },
   {
     label: 'Hilfe',

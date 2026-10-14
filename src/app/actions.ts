@@ -71,6 +71,8 @@ import {
   ListChecks,
   Blocks,
   Focus,
+  Network,
+  Sigma,
   type LucideIcon,
 } from 'lucide-react';
 import { instantiateSnippet, SNIPPETS } from '../editor/snippets';
@@ -79,7 +81,8 @@ import { compileNet } from '../sim/engine';
 import { netAsText } from '../analysis/matrix';
 import { exportPng, exportSvg, printDoc } from '../io/exportImage';
 import { downloadBlob, openFromPicker, saveData, saveTab } from '../io/files';
-import { exportPnml } from '../io/pnml';
+import { exportPnml, pnmlExportNotes } from '../io/pnml';
+import { autoLayout } from '../model/layout';
 import {
   alignElements,
   distributeElements,
@@ -283,7 +286,12 @@ export const ACTIONS: Action[] = [
       const d = docOf();
       if (!d) return;
       try {
-        await saveData({ suggestedName: `${safeName(d)}.pnml`, data: exportPnml(d), mime: 'application/xml', extension: '.pnml', description: 'PNML-Datei' });
+        const path = await saveData({ suggestedName: `${safeName(d)}.pnml`, data: exportPnml(d), mime: 'application/xml', extension: '.pnml', description: 'PNML-Datei' });
+        if (path === null) return;
+        const notes = pnmlExportNotes(d);
+        if (notes.length) {
+          toast('info', 'PNML exportiert', `${notes.join(', ')} kennt der PNML-Standard nicht. Sie sind als HPSim-Erweiterung gespeichert – andere Programme ignorieren sie.`, { duration: 9000 });
+        } else toast('success', 'PNML exportiert', path || undefined);
       } catch (err) {
         toast('error', 'PNML-Export fehlgeschlagen', err instanceof Error ? err.message : String(err));
       }
@@ -443,6 +451,22 @@ export const ACTIONS: Action[] = [
   { id: 'arrange.alignBottom', label: 'Unten ausrichten', group: 'Anordnen', icon: AlignEndHorizontal, enabled: editSel, run: () => align('bottom') },
   { id: 'arrange.distributeH', label: 'Horizontal verteilen', group: 'Anordnen', icon: ArrowLeftRight, enabled: editSel, run: () => { const ids = tab()!.selection; updateDoc((d) => distributeElements(d as NetDoc, ids, 'h')); } },
   { id: 'arrange.distributeV', label: 'Vertikal verteilen', group: 'Anordnen', icon: ArrowLeftRight, enabled: editSel, run: () => { const ids = tab()!.selection; updateDoc((d) => distributeElements(d as NetDoc, ids, 'v')); } },
+  {
+    id: 'arrange.autoLayout',
+    label: 'Automatisch anordnen',
+    group: 'Anordnen',
+    icon: Network,
+    keywords: 'layout aufräumen ordnen automatisch sortieren',
+    enabled: () => editMode() && !!docOf()?.order.some((id) => { const t = docOf()!.elements[id]?.type; return t === 'place' || t === 'transition'; }),
+    run: () => {
+      let n = 0;
+      updateDoc((d) => void (n = autoLayout(d)));
+      if (n) {
+        fitView();
+        toast('success', 'Netz angeordnet', 'Gefällt dir das Ergebnis nicht? Strg+Z macht es rückgängig.');
+      }
+    },
+  },
 
   // ── Werkzeuge
   ...TOOLS.map(
@@ -573,6 +597,10 @@ export const ACTIONS: Action[] = [
 
   // ── Analyse
   { id: 'analysis.validate', label: 'Netz prüfen', group: 'Analyse', icon: ListChecks, keywords: 'fehler warnungen validieren', enabled: hasTab, run: () => setUi({ leftOpen: true, leftTab: 'issues' }) },
+  { id: 'analysis.overview', label: 'Eigenschaften analysieren', group: 'Analyse', icon: FlaskConical, keywords: 'verklemmung deadlock beschränkt lebendig sicher reversibel', enabled: hasTab, run: () => { setMode('analysis'); setUi({ analysisTab: 'overview', rightOpen: true }); } },
+  { id: 'analysis.graph', label: 'Zustandsgraph anzeigen', group: 'Analyse', icon: Waypoints, keywords: 'erreichbarkeitsgraph überdeckungsgraph zustandsraum', enabled: hasTab, run: () => { setMode('analysis'); setUi({ analysisTab: 'graph', rightOpen: true }); } },
+  { id: 'analysis.invariants', label: 'Invarianten anzeigen', group: 'Analyse', icon: Sigma, keywords: 'p-invariante t-invariante erhaltung zyklus', enabled: hasTab, run: () => { setMode('analysis'); setUi({ analysisTab: 'invariants', rightOpen: true }); } },
+  { id: 'analysis.matrix', label: 'Inzidenzmatrix anzeigen', group: 'Analyse', icon: Grid3x3, keywords: 'matrix pre post vorbereich nachbereich', enabled: hasTab, run: () => { setMode('analysis'); setUi({ analysisTab: 'matrix', rightOpen: true }); } },
 
   // ── Hilfe
   { id: 'help.open', label: 'Hilfe & Grundlagen', group: 'Hilfe', shortcut: 'F1', keys: ['f1'], icon: BookOpen, keywords: 'anleitung handbuch was ist', run: () => setUi({ helpTopic: 'start' }) },

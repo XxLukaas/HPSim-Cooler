@@ -480,6 +480,10 @@ export const TOPICS: Topic[] = [
           </li>
           <li>Ausrichten, Verteilen, Gruppieren und Ebenen findest du im Menü „Anordnen“ und im Kontextmenü (Rechtsklick).</li>
           <li>
+            <b>Automatisch anordnen</b> (Menü „Anordnen“) ordnet das ganze Netz übersichtlich von links nach rechts – Stellen mit Anfangsmarken stehen vorn,
+            Kanten laufen möglichst kreuzungsarm. Mit <K>Strg</K>+<K>Z</K> ist alles wieder wie vorher.
+          </li>
+          <li>
             <K>Strg</K>+<K>D</K> dupliziert, Kopieren/Einfügen funktioniert auch zwischen verschiedenen Netzen.
           </li>
         </ul>
