@@ -117,14 +117,18 @@ export function ChartView({ sess }: { sess: SimSession }) {
   const nv = xs.length;
 
   const direct = series.length > 0 && series.length <= 4;
-  const m = { l: 44, r: direct ? 104 : 18, t: 22, b: 30 };
-  const pw = Math.max(40, size.w - m.l - m.r);
-  const ph = Math.max(30, size.h - m.t - m.b);
-  const x0 = nv ? xs[0] : 0;
-  const x1 = nv ? Math.max(xs[nv - 1], x0 + 1) : 1;
+  const mt = 22;
+  const mb = 30;
+  const ph = Math.max(30, size.h - mt - mb);
   let vmax = 1;
   for (const s of series) for (let i = 0; i < s.values.length; i++) if (s.values[i] > vmax) vmax = s.values[i];
   const yTicks = niceTicks(vmax, Math.max(2, Math.min(6, Math.floor(ph / 32))));
+  // Linker Rand passend zur breitesten Achsenbeschriftung (z. B. „150 000“)
+  const labelChars = Math.max(1, ...yTicks.map((t) => formatNumber(t).length));
+  const m = { l: Math.max(44, Math.round(16 + labelChars * 6.6)), r: direct ? 104 : 18, t: mt, b: mb };
+  const pw = Math.max(40, size.w - m.l - m.r);
+  const x0 = nv ? xs[0] : 0;
+  const x1 = nv ? Math.max(xs[nv - 1], x0 + 1) : 1;
   const ymax = yTicks[yTicks.length - 1] || 1;
   const xTicks = rangeTicks(x0, x1, Math.max(2, Math.min(10, Math.floor(pw / 90))));
   const sx = (t: number) => m.l + ((t - x0) / (x1 - x0)) * pw;

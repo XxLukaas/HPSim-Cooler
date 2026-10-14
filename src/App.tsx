@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { DocSettingsDialog } from './app/DocSettingsDialog';
 import { CommandPalette, DialogHost, ErrorBoundary, StatusBar, Toasts, useShortcuts } from './app/Shell';
 import { StartScreen } from './app/StartScreen';
@@ -46,6 +46,20 @@ function Resizer({ axis, value, min, max, onChange, invert, className }: { axis:
 }
 
 // Panels ohne Props: nicht bei jedem Neuzeichnen der Hülle mitrendern
+/** Fensterbreite (für ein Layout, das auch in schmalen Fenstern bedienbar bleibt). */
+function useWindowWidth(): number {
+  const [w, setW] = useState(() => (typeof window !== 'undefined' ? window.innerWidth : 1440));
+  useEffect(() => {
+    const on = () => setW(window.innerWidth);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, []);
+  return w;
+}
+
+/** Mindestbreite, die der Zeichenfläche immer bleiben soll */
+const MIN_CANVAS = 340;
+
 const ExplorerPanelM = memo(ExplorerPanel);
 const PropertiesPanelM = memo(PropertiesPanel);
 const AnalysisPanelM = memo(AnalysisPanel);
@@ -164,7 +178,11 @@ export function App() {
   }, [anyDirty]);
 
   const showStart = ui.showStart || !hasTab;
-  const rightWidth = mode === 'analysis' ? Math.max(ui.rightWidth, 460) : ui.rightWidth;
+  // In schmalen Fenstern zuerst die linke Leiste ausblenden, dann die rechte verschmälern
+  const winW = useWindowWidth();
+  const wantRight = ui.rightOpen ? (mode === 'analysis' ? Math.max(ui.rightWidth, 460) : ui.rightWidth) : 0;
+  const showLeft = ui.leftOpen && winW - ui.leftWidth - wantRight >= MIN_CANVAS;
+  const rightWidth = Math.max(260, Math.min(wantRight, winW - (showLeft ? ui.leftWidth : 0) - MIN_CANVAS));
 
   return (
     <div className="app">
@@ -177,7 +195,7 @@ export function App() {
           </ErrorBoundary>
         ) : (
           <>
-            {ui.leftOpen && (
+            {showLeft && (
               <aside className="sidebar left" style={{ width: ui.leftWidth }} data-testid="left-sidebar">
                 <Resizer className="sidebar-resizer" axis="x" value={ui.leftWidth} min={190} max={480} onChange={(v) => setUi({ leftWidth: v })} />
                 <ErrorBoundary area="Explorer" compact>
