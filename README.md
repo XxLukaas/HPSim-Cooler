@@ -43,11 +43,24 @@ Alte `.hps`-Dateien des Original-HPSim lassen sich direkt öffnen.
 
 ## Starten
 
+### Variante 0: Online über GitHub Pages (am einfachsten)
+
+**➜ https://xxlukaas.github.io/HPSim-Cooler/**
+
+Die fertig gebaute App liegt als `index.html` im Hauptordner des Repositorys und wird von
+GitHub Pages direkt ausgeliefert. Einmalig einrichten (falls die Seite nicht erscheint):
+*Settings → Pages → Build and deployment → Source: „Deploy from a branch“*, Branch
+`claude/program-rebuild-modernize-w430lr` (bzw. der Standard-Branch), Ordner **/ (root)**, *Save*.
+Nach 1–2 Minuten ist die Seite erreichbar. Alternativ kann als Source „GitHub Actions“ gewählt
+werden – dann baut und veröffentlicht `.github/workflows/pages.yml` die App bei jedem Push.
+
+Nach Änderungen am Code aktualisiert `npm run build:pages` die `index.html` im Hauptordner.
+
 ### Variante 1: Einzelne HTML-Datei (ohne Installation)
 
-`npm run build:standalone` erzeugt `dist-standalone/index.html` – eine einzige Datei, die per
-Doppelklick in jedem modernen Browser (Edge, Chrome, Firefox) läuft, auch ohne Internet.
-In den GitHub-Releases liegt sie fertig als **`HPSim-Studio.html`** bei.
+Die Datei **`HPSim-Studio.html`** im Hauptordner herunterladen und per Doppelklick öffnen –
+sie läuft in jedem modernen Browser (Edge, Chrome, Firefox), auch ohne Internet.
+Selbst erzeugen: `npm run build:standalone` (Ergebnis: `dist-standalone/index.html`).
 
 ### Variante 2: Desktop-Programm
 

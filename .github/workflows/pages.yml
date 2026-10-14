@@ -1,0 +1,65 @@
+# Veröffentlicht HPSim Studio auf GitHub Pages.
+#
+# Zwei Wege funktionieren:
+#  1. Settings → Pages → Source „Deploy from a branch“ (Branch = Standard-Branch, Ordner „/ (root)“):
+#     Dann wird die fertig gebaute index.html aus dem Hauptordner ausgeliefert – dieser Workflow
+#     überspringt die Veröffentlichung.
+#  2. Settings → Pages → Source „GitHub Actions“: Dann baut dieser Workflow die App bei jedem
+#     Push auf den Standard-Branch neu und veröffentlicht sie.
+name: GitHub Pages
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      mode: ${{ steps.mode.outputs.mode }}
+    steps:
+      - name: Pages-Quelle ermitteln
+        id: mode
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mode=$(gh api "repos/${{ github.repository }}/pages" --jq .build_type 2>/dev/null || echo none)
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "GitHub-Pages-Quelle: $mode"
+
+  deploy:
+    needs: check
+    if: needs.check.outputs.mode == 'workflow' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build:standalone
+      - name: Seite zusammenstellen
+        run: |
+          mkdir -p site
+          cp dist-standalone/index.html site/index.html
+          cp dist-standalone/index.html site/HPSim-Studio.html
+          touch site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4
