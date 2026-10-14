@@ -1037,9 +1037,11 @@ kbd,
 
 .canvas-hint {
   position: absolute;
-  left: 50%;
-  top: 14px;
-  transform: translateX(-50%);
+  left: 12px;
+  bottom: 12px;
+  max-width: calc(100% - 260px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   padding: 7px 14px;
   border-radius: 999px;
   background: var(--glass);
@@ -1418,4 +1420,47 @@ textarea.inline-editor {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
+}
+
+/* Hover-Rückmeldung auf der Zeichenfläche */
+.canvas-host:not(.dragging) .net-place:hover,
+.canvas-host:not(.dragging) .net-transition:hover {
+  filter: drop-shadow(0 0 5px rgba(96, 165, 250, 0.55));
+}
+.canvas-host.mode-sim:not(.dragging) .net-transition:hover {
+  filter: drop-shadow(0 0 7px rgba(52, 211, 153, 0.7));
+}
+.canvas-host:not(.dragging) .net-arc:hover path:nth-child(2) {
+  stroke-width: 2.8;
+}
+.canvas-host.mode-edit.tool-select .net-arc,
+.canvas-host.mode-edit.tool-select .net-decor {
+  cursor: pointer;
+}
+
+.canvas-tip {
+  position: absolute;
+  z-index: 7;
+  max-width: 320px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  font-size: 12px;
+  animation: fade 0.12s ease-out;
+}
+.canvas-tip-title {
+  font-weight: 700;
+  margin-bottom: 3px;
+}
+.canvas-tip-line {
+  color: var(--text-2);
+}
+.canvas-tip-line.ok {
+  color: var(--success);
+}
+.canvas-tip-line.bad {
+  color: var(--warning);
 }

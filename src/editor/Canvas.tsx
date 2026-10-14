@@ -10,7 +10,6 @@ import { createArc, createLine, createPlace, createPoly, createRect, createText,
 import {
   arcPolyline,
   defaultNameOffset,
-  defaultSecondaryOffset,
   distToPolyline,
   elementBounds,
   polylineMidpoint,
@@ -40,15 +39,27 @@ import {
   zoomAt,
   type Tool,
 } from '../store/appStore';
-import { displayMarking, simFire, transitionVisuals, useSim } from '../store/simStore';
+import { displayMarking, getSession, simFire, transitionVisuals, useSim } from '../store/simStore';
+import { explainEnabling, formatNumber, timingLabel } from '../sim/engine';
 import { Minimap } from './Minimap';
-import { NetContent, type RenderState } from './NetRender';
+import { NetContent, resolveLabelOffset, type RenderState } from './NetRender';
 import { Handles, handlesFor, PreviewLine, SelectionBox, TokenAnimation } from './Overlays';
 import { paletteFor } from './palette';
 
 type Drag =
   | { kind: 'pan'; sx: number; sy: number; vx: number; vy: number; moved: boolean; clickId: Id | null }
-  | { kind: 'move'; start: Point; ids: Id[]; anchor: Point; moved: boolean; clickId: Id; collapseTo: Id | null; snapNet: boolean }
+  | {
+      kind: 'move';
+      start: Point;
+      ids: Id[];
+      anchor: Point;
+      moved: boolean;
+      clickId: Id;
+      collapseTo: Id | null;
+      snapNet: boolean;
+      /** Mittelpunkte anderer Knoten für Hilfslinien */
+      others: Point[];
+    }
   | { kind: 'rubber'; start: Point; additive: boolean; base: Id[] }
   | { kind: 'arc'; source: Id; sx: number; sy: number; dragged: boolean }
   | { kind: 'handle'; elId: Id; handle: string; start: Point; orig: Element; moved: boolean }
@@ -56,6 +67,7 @@ type Drag =
   | { kind: 'draw'; tool: 'rect' | 'ellipse' | 'line'; start: Point };
 
 interface Preview {
+  guides?: { v: { x: number; y1: number; y2: number } | null; h: { y: number; x1: number; x2: number } | null };
   rubber?: Rect;
   arc?: { from: Point; to: Point; ok: boolean; points: Point[] };
   draw?: { tool: 'rect' | 'ellipse' | 'line'; a: Point; b: Point };
@@ -114,6 +126,12 @@ export function Canvas() {
   const [polyDraft, setPolyDraft] = useState<Point[] | null>(null);
   const highlightIds = useApp((s) => s.ui.highlight);
   const finishPolyRef = useRef<((pts: Point[], closed: boolean) => void) | null>(null);
+  // Touch: aktive Finger und laufende Zwei-Finger-Geste
+  const [tip, setTip] = useState<{ id: Id; x: number; y: number } | null>(null);
+  const tipTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tipId = useRef<Id | null>(null);
+  const touches = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ dist: number; mid: { x: number; y: number }; view: { x: number; y: number; zoom: number } } | null>(null);
 
   const doc = tab?.doc ?? null;
   const view = tab?.view ?? { x: 0, y: 0, zoom: 1 };
@@ -336,8 +354,37 @@ export function Canvas() {
 
   // ─────────────────────────── Zeiger-Ereignisse ───────────────────────────
 
+  const pinchInfo = () => {
+    const pts = [...touches.current.values()];
+    const r = hostRef.current?.getBoundingClientRect();
+    const mid = { x: (pts[0].x + pts[1].x) / 2 - (r?.left ?? 0), y: (pts[0].y + pts[1].y) / 2 - (r?.top ?? 0) };
+    return { dist: Math.max(10, Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y)), mid };
+  };
+
+  const hideTip = () => {
+    if (tipTimer.current) clearTimeout(tipTimer.current);
+    tipId.current = null;
+    setTip(null);
+  };
+
   const onPointerDown = (e: React.PointerEvent) => {
+    hideTip();
     if (e.button === 2) return;
+    if (e.pointerType === 'touch') {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (touches.current.size === 2) {
+        // Zwei Finger: laufende Aktion abbrechen und Zoom-Geste starten
+        const d = dragRef.current;
+        if (d && (d.kind === 'move' || d.kind === 'handle' || d.kind === 'label')) cancelTransient();
+        dragRef.current = null;
+        setPreview({});
+        const info = pinchInfo();
+        pinch.current = { ...info, view: { ...view } };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        return;
+      }
+      if (touches.current.size > 2) return;
+    }
     hostRef.current?.focus({ preventScroll: true });
     const w = toWorld(e.clientX, e.clientY);
     const hit = elementAt(e.target);
@@ -417,8 +464,7 @@ export function Canvas() {
       const owner = doc.elements[hit.label.owner];
       if (owner) {
         let orig: Point = { x: 0, y: 0 };
-        if (owner.type === 'place') orig = (hit.label.kind === 'name' ? owner.nameOffset : owner.capOffset) ?? (hit.label.kind === 'name' ? defaultNameOffset(owner) : defaultSecondaryOffset(owner));
-        else if (owner.type === 'transition') orig = (hit.label.kind === 'name' ? owner.nameOffset : owner.delayOffset) ?? (hit.label.kind === 'name' ? defaultNameOffset(owner) : defaultSecondaryOffset(owner));
+        if (owner.type === 'place' || owner.type === 'transition') orig = resolveLabelOffset(doc, owner, hit.label.kind === 'name' ? 'name' : 'secondary');
         else if (owner.type === 'arc') {
           if (owner.labelOffset) orig = owner.labelOffset;
           else {
@@ -464,6 +510,14 @@ export function Canvas() {
       if (!sel.includes(target.id)) return;
       const b = elementBounds(doc, target);
       const anchor = isNodeEl(target) ? { x: target.x, y: target.y } : { x: b.x, y: b.y };
+      const selSet = new Set(sel);
+      const others: Point[] = [];
+      if (isNodeEl(target)) {
+        for (const oid of doc.order) {
+          const o = doc.elements[oid];
+          if (isNodeEl(o) && !selSet.has(oid)) others.push({ x: o.x, y: o.y });
+        }
+      }
       dragRef.current = {
         kind: 'move',
         start: w,
@@ -473,6 +527,7 @@ export function Canvas() {
         clickId: target.id,
         collapseTo,
         snapNet: sel.some((id) => isNodeEl(doc.elements[id])),
+        others,
       };
       setDragging(true);
       return;
@@ -512,9 +567,35 @@ export function Canvas() {
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch' && touches.current.has(e.pointerId)) {
+      touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch.current && touches.current.size >= 2) {
+        const info = pinchInfo();
+        const st = pinch.current;
+        const zoom = Math.min(6, Math.max(0.1, st.view.zoom * (info.dist / st.dist)));
+        const wx = (st.mid.x - st.view.x) / st.view.zoom;
+        const wy = (st.mid.y - st.view.y) / st.view.zoom;
+        setView({ zoom, x: info.mid.x - wx * zoom, y: info.mid.y - wy * zoom });
+        return;
+      }
+    }
     const w = toWorld(e.clientX, e.clientY);
     setUi({ cursor: { x: Math.round(w.x), y: Math.round(w.y) } });
     const d = dragRef.current;
+    if (!d && e.pointerType !== 'touch') {
+      const hid = elementAt(e.target).id;
+      if (hid !== tipId.current) {
+        tipId.current = hid;
+        if (tipTimer.current) clearTimeout(tipTimer.current);
+        setTip(null);
+        if (hid) {
+          const r = hostRef.current?.getBoundingClientRect();
+          const x = e.clientX - (r?.left ?? 0);
+          const y = e.clientY - (r?.top ?? 0);
+          tipTimer.current = setTimeout(() => setTip({ id: hid, x, y }), 650);
+        }
+      }
+    }
     if (!d) {
       if (arcPending) {
         const src = doc.elements[arcPending.source];
@@ -543,7 +624,40 @@ export function Canvas() {
         if (!d.moved && Math.hypot(dx0, dy0) * view.zoom < 3) return;
         if (!d.moved) beginTransient();
         d.moved = true;
-        const target = snapPt({ x: d.anchor.x + dx0, y: d.anchor.y + dy0 }, d.snapNet, e.altKey);
+        const raw = { x: d.anchor.x + dx0, y: d.anchor.y + dy0 };
+        const target = snapPt(raw, d.snapNet, e.altKey);
+        // Hilfslinien: an anderen Knoten ausrichten (hat Vorrang vor dem Raster)
+        let guides: Preview['guides'] = undefined;
+        if (d.others.length && !e.altKey) {
+          const tol = 7 / view.zoom;
+          let bx: number | null = null;
+          let by: number | null = null;
+          let bdx = tol;
+          let bdy = tol;
+          for (const o of d.others) {
+            const ddx = Math.abs(o.x - raw.x);
+            const ddy = Math.abs(o.y - raw.y);
+            if (ddx < bdx) {
+              bdx = ddx;
+              bx = o.x;
+            }
+            if (ddy < bdy) {
+              bdy = ddy;
+              by = o.y;
+            }
+          }
+          if (bx !== null) target.x = bx;
+          if (by !== null) target.y = by;
+          if (bx !== null || by !== null) {
+            const alignedV = bx !== null ? d.others.filter((o) => Math.abs(o.x - bx!) < 0.5).map((o) => o.y) : [];
+            const alignedH = by !== null ? d.others.filter((o) => Math.abs(o.y - by!) < 0.5).map((o) => o.x) : [];
+            guides = {
+              v: bx !== null ? { x: bx, y1: Math.min(target.y, ...alignedV) - 30, y2: Math.max(target.y, ...alignedV) + 30 } : null,
+              h: by !== null ? { y: by, x1: Math.min(target.x, ...alignedH) - 30, x2: Math.max(target.x, ...alignedH) + 30 } : null,
+            };
+          }
+        }
+        setPreview(guides ? { guides } : {});
         const dx = target.x - d.anchor.x;
         const dy = target.y - d.anchor.y;
         updateFromBase((draft) => moveElements(draft as NetDoc, d.ids, dx, dy));
@@ -629,6 +743,15 @@ export function Canvas() {
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
+    if (e.pointerType === 'touch') {
+      touches.current.delete(e.pointerId);
+      if (pinch.current) {
+        if (touches.current.size < 2) pinch.current = null;
+        dragRef.current = null;
+        setDragging(false);
+        return;
+      }
+    }
     const d = dragRef.current;
     dragRef.current = null;
     setDragging(false);
@@ -650,6 +773,7 @@ export function Canvas() {
         }
         return;
       case 'move':
+        setPreview({});
         if (d.moved) commitTransient();
         else if (d.collapseTo && tab.selection.length > 1) setSelection([d.collapseTo]);
         return;
@@ -854,7 +978,10 @@ export function Canvas() {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
-      onPointerLeave={() => setUi({ cursor: null })}
+      onPointerLeave={() => {
+        setUi({ cursor: null });
+        hideTip();
+      }}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
     >
@@ -875,6 +1002,12 @@ export function Canvas() {
           {mode === 'sim' && sess?.anim && <TokenAnimation doc={doc} batch={sess.anim} p={p} />}
           {handles.length > 0 && <Handles handles={handles} zoom={view.zoom} p={p} />}
           {preview.rubber && <SelectionBox rect={preview.rubber} zoom={view.zoom} p={p} />}
+          {preview.guides && (
+            <g pointerEvents="none" stroke={p.highlight} strokeWidth={1 / view.zoom} strokeDasharray={`${4 / view.zoom} ${3 / view.zoom}`}>
+              {preview.guides.v && <line x1={preview.guides.v.x} y1={preview.guides.v.y1} x2={preview.guides.v.x} y2={preview.guides.v.y2} />}
+              {preview.guides.h && <line x1={preview.guides.h.x1} y1={preview.guides.h.y} x2={preview.guides.h.x2} y2={preview.guides.h.y} />}
+            </g>
+          )}
           {preview.arc && <PreviewLine from={preview.arc.from} to={preview.arc.to} ok={preview.arc.ok} p={p} zoom={view.zoom} points={preview.arc.points} />}
           {preview.draw &&
             (preview.draw.tool === 'line' ? (
@@ -934,6 +1067,7 @@ export function Canvas() {
         <InlineEditor
           key={editing.id + editing.kind}
           el={editEl}
+          doc={doc}
           kind={editing.kind}
           toScreen={toScreen}
           zoom={view.zoom}
@@ -944,7 +1078,18 @@ export function Canvas() {
         />
       )}
 
-      {minimap && !isEmpty && <Minimap doc={doc} view={view} viewport={viewport} p={p} />}
+      {tip && !dragging && !editing && doc.elements[tip.id] && (
+        <ElementTip
+          el={doc.elements[tip.id]}
+          doc={doc}
+          tabId={tab.id}
+          mode={mode}
+          x={Math.max(0, Math.min(tip.x, viewport.w - 350))}
+          y={Math.max(0, Math.min(tip.y, viewport.h - 140))}
+        />
+      )}
+
+      {minimap && !isEmpty && viewport.h >= 480 && viewport.w >= 640 && <Minimap doc={doc} view={view} viewport={viewport} p={p} />}
       <div className="zoom-controls" onPointerDown={(e) => e.stopPropagation()}>
         <IconButton small icon={<Minus size={15} />} title="Verkleinern (−)" onClick={() => zoomAt(0.8)} />
         <button className="zoom-label" title="Auf 100 % setzen" onClick={() => zoomAt(1 / view.zoom)} data-testid="zoom-label">
@@ -957,14 +1102,82 @@ export function Canvas() {
   );
 }
 
+/** Kurzinfo zu einem Element beim Überfahren mit der Maus. */
+function ElementTip({ el, doc, tabId, mode, x, y }: { el: Element; doc: NetDoc; tabId: string; mode: string; x: number; y: number }) {
+  const unit = doc.settings.sim.timeUnit;
+  const name = (id: string) => {
+    const n = doc.elements[id];
+    return n && 'name' in n ? n.name : '?';
+  };
+  let title = '';
+  const lines: { text: string; ok?: boolean }[] = [];
+  const sess = mode === 'sim' ? getSession(tabId) : null;
+  switch (el.type) {
+    case 'place': {
+      title = `Stelle „${el.name}“`;
+      const idx = sess?.net.placeIndex.get(el.id);
+      const cur = sess && idx !== undefined ? sess.display[idx] : el.tokens;
+      lines.push({ text: `${formatNumber(cur)} Marke${cur === 1 ? '' : 'n'}${sess ? ` (Anfang: ${el.tokens})` : ''}` });
+      lines.push({ text: el.capacity > 0 ? `Kapazität: ${el.capacity}` : 'Kapazität: unbegrenzt' });
+      break;
+    }
+    case 'transition': {
+      title = `Transition „${el.name}“`;
+      lines.push({
+        text:
+          el.timing === 'immediate'
+            ? 'Schaltet sofort'
+            : el.timing === 'deterministic'
+              ? `${timingLabel(el.timing)}: ${formatNumber(el.delay, 3)} ${unit}`
+              : el.timing === 'exponential'
+                ? `Exponentialverteilt, Mittelwert ${formatNumber(el.delay, 3)} ${unit}`
+                : `Gleichverteilt zwischen ${formatNumber(el.delay, 3)} und ${formatNumber(el.delayMax, 3)} ${unit}`,
+      });
+      if (el.priority) lines.push({ text: `Priorität ${el.priority}` });
+      if (sess) {
+        const t = sess.net.transIndex.get(el.id);
+        if (t !== undefined) {
+          const reasons = explainEnabling(sess.net, t, sess.state, unit);
+          const bad = reasons.filter((r) => !r.ok);
+          if (!bad.length) lines.push({ text: 'Aktiviert – Klick schaltet die Transition', ok: true });
+          else for (const r of bad.slice(0, 3)) lines.push({ text: r.text, ok: false });
+          lines.push({ text: `${formatNumber(sess.state.fired[t])}× geschaltet` });
+        }
+      }
+      break;
+    }
+    case 'arc':
+      title = `Kante ${name(el.source)} → ${name(el.target)}`;
+      lines.push({ text: `Gewicht ${el.weight}` });
+      if (el.kind !== 'normal')
+        lines.push({ text: el.kind === 'test' ? 'Testkante: prüft Marken, verbraucht sie aber nicht' : `Inhibitorkante: verbietet das Schalten ab ${el.weight} Marke(n)` });
+      break;
+    default:
+      return null;
+  }
+  if ('note' in el && el.note) lines.push({ text: el.note.length > 140 ? el.note.slice(0, 140) + '…' : el.note });
+  return (
+    <div className="canvas-tip" style={{ left: x + 14, top: y + 16 }} role="tooltip">
+      <div className="canvas-tip-title">{title}</div>
+      {lines.map((l, i) => (
+        <div key={i} className={`canvas-tip-line${l.ok === true ? ' ok' : l.ok === false ? ' bad' : ''}`}>
+          {l.text}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function InlineEditor({
   el,
+  doc,
   kind,
   toScreen,
   zoom,
   onDone,
 }: {
   el: Element;
+  doc: NetDoc;
   kind: 'name' | 'text';
   toScreen: (p: Point) => Point;
   zoom: number;
@@ -1015,7 +1228,7 @@ function InlineEditor({
     );
   }
   if (el.type !== 'place' && el.type !== 'transition') return null;
-  const off = el.nameOffset ?? defaultNameOffset(el);
+  const off = doc ? resolveLabelOffset(doc, el, 'name') : defaultNameOffset(el);
   const pos = toScreen({ x: el.x + off.x, y: el.y + off.y });
   return (
     <input

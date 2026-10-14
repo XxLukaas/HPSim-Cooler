@@ -331,14 +331,12 @@ export function simBack(tabId: string): void {
   }));
 }
 
-export function simReset(tabId: string, newSeed = false): void {
+/** Setzt die Simulation auf die Anfangsmarkierung zurück (fester Startwert → gleiche Zufallsfolge). */
+export function simReset(tabId: string): void {
   const sess = getSession(tabId);
   if (!sess) return;
   stopTimers(tabId);
   const fresh = newSession(tabId, sess.doc, sess);
-  if (!newSeed && sess.doc.settings.sim.seed === null) {
-    // gleicher Startwert nur bei festem Seed; sonst neuer Zufall
-  }
   setS((st) => ({ sessions: { ...st.sessions, [tabId]: fresh } }));
 }
 
@@ -571,7 +569,8 @@ export function replaySequence(tabId: string, sequence: number[], label = 'Schal
 /** Visualisierungszustand aller Transitionen (aktiviert, wartend, geschaltet …). */
 export function transitionVisuals(sess: SimSession): Record<string, TransVisual> {
   const res: Record<string, TransVisual> = {};
-  const m = sess.state.marking;
+  // Während einer Animation zählt, was gerade zu sehen ist (Marken noch unterwegs)
+  const m = sess.anim ? sess.display : sess.state.marking;
   const fired = new Set(sess.lastFired);
   sess.net.transitions.forEach((tr, t) => {
     const timer = sess.state.timers[t];
@@ -589,6 +588,21 @@ export function transitionVisuals(sess: SimSession): Record<string, TransVisual>
     if (status === 'ready' && tr.timing === 'immediate') status = 'enabled';
     res[tr.id] = { status, progress, fired: sess.state.fired[t] };
   });
+  // Konflikte: aktivierte Transitionen, die zusammen mehr Marken bräuchten, als vorhanden sind
+  const demand = new Map<number, { total: number; ts: number[] }>();
+  sess.net.transitions.forEach((tr, t) => {
+    const v = res[tr.id];
+    if (v.status === 'disabled') return;
+    for (const [p, w] of tr.consume) {
+      const d = demand.get(p) ?? { total: 0, ts: [] };
+      d.total += w;
+      d.ts.push(t);
+      demand.set(p, d);
+    }
+  });
+  for (const [p, d] of demand) {
+    if (d.ts.length > 1 && d.total > m[p]) for (const t of d.ts) res[sess.net.transitions[t].id].conflict = true;
+  }
   return res;
 }
 

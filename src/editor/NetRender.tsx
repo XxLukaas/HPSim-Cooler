@@ -10,7 +10,29 @@ import {
   polylineMidpoint,
 } from '../model/geometry';
 import type { ArcEl, DecorEl, LineEl, NetDoc, NodeEl, PlaceEl, Point, PolyEl, RectEl, TextEl, TransitionEl } from '../model/types';
+import { autoLabelSlots, type LabelSlots } from './labels';
 import { DASH, type Palette } from './palette';
+
+const slotCache = new WeakMap<NetDoc, Map<string, LabelSlots>>();
+
+/** Automatische Beschriftungspositionen (je Dokumentstand zwischengespeichert). */
+export function labelSlots(doc: NetDoc): Map<string, LabelSlots> {
+  let m = slotCache.get(doc);
+  if (!m) {
+    m = autoLabelSlots(doc);
+    slotCache.set(doc, m);
+  }
+  return m;
+}
+
+/** Tatsächliche Position der Namens- bzw. Zusatzbeschriftung relativ zum Knoten. */
+export function resolveLabelOffset(doc: NetDoc, node: NodeEl, kind: 'name' | 'secondary'): Point {
+  const manual = kind === 'name' ? node.nameOffset : node.type === 'place' ? node.capOffset : node.delayOffset;
+  if (manual) return manual;
+  const slot = labelSlots(doc).get(node.id);
+  if (slot) return kind === 'name' ? slot.name : slot.secondary;
+  return kind === 'name' ? defaultNameOffset(node) : defaultSecondaryOffset(node);
+}
 
 export type TransStatus = 'disabled' | 'enabled' | 'waiting' | 'ready' | 'fired';
 
@@ -19,6 +41,8 @@ export interface TransVisual {
   /** Anteil der bereits verstrichenen Verzögerung (0..1) */
   progress: number | null;
   fired: number;
+  /** konkurriert mit anderen aktivierten Transitionen um dieselben Marken */
+  conflict?: boolean;
 }
 
 export interface RenderState {
@@ -140,12 +164,17 @@ interface PlaceProps {
   tokens: number;
   selected: boolean;
   highlighted: boolean;
+  /** automatische Beschriftungspositionen (dx/dy) */
+  ax?: number;
+  ay?: number;
+  bx?: number;
+  by?: number;
 }
 
-export const PlaceView = memo(function PlaceView({ el, p, tokens, selected, highlighted }: PlaceProps) {
+export const PlaceView = memo(function PlaceView({ el, p, tokens, selected, highlighted, ax, ay, bx, by }: PlaceProps) {
   const full = el.capacity > 0 && tokens >= el.capacity;
-  const nameOff = el.nameOffset ?? defaultNameOffset(el);
-  const capOff = el.capOffset ?? defaultSecondaryOffset(el);
+  const nameOff = el.nameOffset ?? (ax !== undefined && ay !== undefined ? { x: ax, y: ay } : defaultNameOffset(el));
+  const capOff = el.capOffset ?? (bx !== undefined && by !== undefined ? { x: bx, y: by } : defaultSecondaryOffset(el));
   const layout = tokens <= 6 && el.r >= 9 ? tokenLayout(tokens, el.r) : [];
   const tokR = Math.max(2.2, Math.min(5.5, el.r * 0.19));
   const stroke = el.color ?? p.placeStroke;
@@ -210,13 +239,17 @@ interface TransitionProps {
   selected: boolean;
   highlighted: boolean;
   visual: TransVisual | null;
+  ax?: number;
+  ay?: number;
+  bx?: number;
+  by?: number;
 }
 
-export const TransitionView = memo(function TransitionView({ el, p, selected, highlighted, visual }: TransitionProps) {
+export const TransitionView = memo(function TransitionView({ el, p, selected, highlighted, visual, ax, ay, bx, by }: TransitionProps) {
   const x = el.x - el.w / 2;
   const y = el.y - el.h / 2;
-  const nameOff = el.nameOffset ?? defaultNameOffset(el);
-  const delOff = el.delayOffset ?? defaultSecondaryOffset(el);
+  const nameOff = el.nameOffset ?? (ax !== undefined && ay !== undefined ? { x: ax, y: ay } : defaultNameOffset(el));
+  const delOff = el.delayOffset ?? (bx !== undefined && by !== undefined ? { x: bx, y: by } : defaultSecondaryOffset(el));
   const accent =
     el.color ??
     (el.timing === 'immediate' ? p.transImmediate : el.timing === 'deterministic' ? p.transTimed : p.transStochastic);
@@ -252,6 +285,22 @@ export const TransitionView = memo(function TransitionView({ el, p, selected, hi
           strokeWidth={status === 'fired' ? 4 : 2.5}
           opacity={status === 'enabled' ? 0.75 : 0.95}
         />
+      )}
+      {visual?.conflict && status !== 'disabled' && (
+        <rect
+          className="net-conflict"
+          x={x - 8}
+          y={y - 8}
+          width={el.w + 16}
+          height={el.h + 16}
+          rx={6}
+          fill="none"
+          stroke={p.conflict}
+          strokeWidth={1.6}
+          strokeDasharray="4 3"
+        >
+          <title>Konflikt: konkurriert mit anderen Transitionen um dieselben Marken</title>
+        </rect>
       )}
       <rect
         x={x}
@@ -540,11 +589,13 @@ export function NetContent({ doc, p, state }: NetContentProps) {
   const decor: JSX.Element[] = [];
   const arcs: JSX.Element[] = [];
   const nodes: JSX.Element[] = [];
+  const slots = labelSlots(doc);
   for (const id of doc.order) {
     const el = doc.elements[id];
     if (!el) continue;
     switch (el.type) {
-      case 'place':
+      case 'place': {
+        const sl = slots.get(id);
         nodes.push(
           <PlaceView
             key={id}
@@ -553,10 +604,16 @@ export function NetContent({ doc, p, state }: NetContentProps) {
             tokens={state?.marking?.[id] ?? el.tokens}
             selected={sel.has(id)}
             highlighted={hl.has(id)}
+            ax={sl?.name.x}
+            ay={sl?.name.y}
+            bx={sl?.secondary.x}
+            by={sl?.secondary.y}
           />,
         );
         break;
-      case 'transition':
+      }
+      case 'transition': {
+        const sl = slots.get(id);
         nodes.push(
           <TransitionView
             key={id}
@@ -565,9 +622,14 @@ export function NetContent({ doc, p, state }: NetContentProps) {
             selected={sel.has(id)}
             highlighted={hl.has(id)}
             visual={state?.trans?.[id] ?? null}
+            ax={sl?.name.x}
+            ay={sl?.name.y}
+            bx={sl?.secondary.x}
+            by={sl?.secondary.y}
           />,
         );
         break;
+      }
       case 'arc': {
         const s = doc.elements[el.source];
         const t = doc.elements[el.target];

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import { DocSettingsDialog } from './app/DocSettingsDialog';
 import { CommandPalette, DialogHost, ErrorBoundary, StatusBar, Toasts, useShortcuts } from './app/Shell';
 import { StartScreen } from './app/StartScreen';
@@ -17,6 +17,7 @@ import { AnalysisPanel } from './panels/AnalysisPanel';
 import { ExplorerPanel } from './panels/ExplorerPanel';
 import { PropertiesPanel } from './panels/PropertiesPanel';
 import { SimPanel } from './panels/SimPanel';
+import { useShallow } from 'zustand/react/shallow';
 import { activeTab, installAutosave, isDirty, openDocument, readSavedSession, restoreTabs, setUi, toast, useApp } from './store/appStore';
 import { installSimSync } from './store/simStore';
 
@@ -43,6 +44,14 @@ function Resizer({ axis, value, min, max, onChange, invert, className }: { axis:
     />
   );
 }
+
+// Panels ohne Props: nicht bei jedem Neuzeichnen der Hülle mitrendern
+const ExplorerPanelM = memo(ExplorerPanel);
+const PropertiesPanelM = memo(PropertiesPanel);
+const AnalysisPanelM = memo(AnalysisPanel);
+const SimPanelM = memo(SimPanel);
+const CanvasM = memo(Canvas);
+const StartScreenM = memo(StartScreen);
 
 let bootstrapped = false;
 
@@ -87,8 +96,20 @@ function bootstrap(): () => void {
 export function App() {
   useShortcuts();
   const theme = useApp((s) => s.ui.theme);
-  const tab = useApp((s) => activeTab(s));
-  const ui = useApp((s) => s.ui);
+  const hasTab = useApp((s) => !!activeTab(s));
+  const mode = useApp((s) => activeTab(s)?.mode ?? 'edit');
+  // Nur die Layout-relevanten UI-Felder abonnieren (nicht z. B. die Cursorposition)
+  const ui = useApp(
+    useShallow((s) => ({
+      showStart: s.ui.showStart,
+      leftOpen: s.ui.leftOpen,
+      rightOpen: s.ui.rightOpen,
+      bottomOpen: s.ui.bottomOpen,
+      leftWidth: s.ui.leftWidth,
+      rightWidth: s.ui.rightWidth,
+      bottomHeight: s.ui.bottomHeight,
+    })),
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -142,8 +163,7 @@ export function App() {
     desktop?.setDirty(anyDirty);
   }, [anyDirty]);
 
-  const showStart = ui.showStart || !tab;
-  const mode = tab?.mode ?? 'edit';
+  const showStart = ui.showStart || !hasTab;
   const rightWidth = mode === 'analysis' ? Math.max(ui.rightWidth, 460) : ui.rightWidth;
 
   return (
@@ -153,7 +173,7 @@ export function App() {
       <div className="workspace">
         {showStart ? (
           <ErrorBoundary area="Startseite">
-            <StartScreen />
+            <StartScreenM />
           </ErrorBoundary>
         ) : (
           <>
@@ -161,19 +181,19 @@ export function App() {
               <aside className="sidebar left" style={{ width: ui.leftWidth }} data-testid="left-sidebar">
                 <Resizer className="sidebar-resizer" axis="x" value={ui.leftWidth} min={190} max={480} onChange={(v) => setUi({ leftWidth: v })} />
                 <ErrorBoundary area="Explorer" compact>
-                  <ExplorerPanel />
+                  <ExplorerPanelM />
                 </ErrorBoundary>
               </aside>
             )}
             <main className="center">
               <ErrorBoundary area="Zeichenfläche">
-                <Canvas />
+                <CanvasM />
               </ErrorBoundary>
               {mode === 'sim' && ui.bottomOpen && (
                 <section className="bottom-panel" style={{ height: ui.bottomHeight }} data-testid="bottom-panel">
                   <Resizer className="bottom-resizer" axis="y" value={ui.bottomHeight} min={120} max={Math.max(160, window.innerHeight - 260)} invert onChange={(v) => setUi({ bottomHeight: v })} />
                   <ErrorBoundary area="Simulation" compact>
-                    <SimPanel />
+                    <SimPanelM />
                   </ErrorBoundary>
                 </section>
               )}
@@ -182,7 +202,7 @@ export function App() {
               <aside className="sidebar right" style={{ width: rightWidth }} data-testid="right-sidebar">
                 <Resizer className="sidebar-resizer" axis="x" value={rightWidth} min={260} max={820} invert onChange={(v) => setUi({ rightWidth: v })} />
                 <ErrorBoundary area={mode === 'analysis' ? 'Analyse' : 'Eigenschaften'} compact>
-                  {mode === 'analysis' ? <AnalysisPanel /> : <PropertiesPanel />}
+                  {mode === 'analysis' ? <AnalysisPanelM /> : <PropertiesPanelM />}
                 </ErrorBoundary>
               </aside>
             )}

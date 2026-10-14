@@ -69,8 +69,12 @@ import {
   GraduationCap,
   Sparkles,
   ListChecks,
+  Blocks,
+  Focus,
   type LucideIcon,
 } from 'lucide-react';
+import { instantiateSnippet, SNIPPETS } from '../editor/snippets';
+import { contentBounds } from '../model/geometry';
 import { compileNet } from '../sim/engine';
 import { netAsText } from '../analysis/matrix';
 import { exportPng, exportSvg, printDoc } from '../io/exportImage';
@@ -90,6 +94,7 @@ import type { NetDoc } from '../model/types';
 import {
   activeTab,
   ask,
+  setSelection,
   clearSelection,
   closeTabNow,
   copySelection,
@@ -208,6 +213,58 @@ const TOOLS: { tool: Tool; label: string; key: string; icon: LucideIcon; keyword
   { tool: 'line', label: 'Linie', key: 'l', icon: Minus, keywords: 'strich' },
   { tool: 'poly', label: 'Linienzug / Polygon', key: 'y', icon: Hexagon, keywords: 'polygon vieleck' },
 ];
+
+/** Fügt einen Baustein in der Mitte der aktuellen Ansicht ein. */
+export function insertSnippet(id: string): void {
+  const t = tab();
+  const sn = SNIPPETS.find((x) => x.id === id);
+  if (!t || !sn) return;
+  if (t.mode !== 'edit') setMode('edit');
+  const { viewport } = useApp.getState().ui;
+  const cx = (viewport.w / 2 - t.view.x) / t.view.zoom;
+  const cy = (viewport.h / 2 - t.view.y) / t.view.zoom;
+  let els = instantiateSnippet(t.doc, sn, cx, cy);
+  // Überlappt der Baustein vorhandene Elemente, rechts neben dem Netz einfügen
+  const content = contentBounds(t.doc);
+  const tmp = { ...t.doc, elements: { ...t.doc.elements }, order: [...t.doc.order] };
+  for (const el of els) {
+    tmp.elements[el.id] = el;
+  }
+  const sb = contentBounds(tmp, els.map((e) => e.id));
+  if (content && sb) {
+    const overlaps = t.doc.order.some((id) => {
+      const el = t.doc.elements[id];
+      if (!el || el.type === 'arc') return false;
+      const b = contentBounds(t.doc, [id]);
+      return !!b && b.x < sb.x + sb.w + 20 && sb.x < b.x + b.w + 20 && b.y < sb.y + sb.h + 20 && sb.y < b.y + b.h + 20;
+    });
+    if (overlaps) {
+      const nx = content.x + content.w + 120 + sb.w / 2;
+      const ny = content.y + sb.h / 2;
+      els = instantiateSnippet(t.doc, sn, nx, ny);
+    }
+  }
+  updateDoc((d) => {
+    for (const el of els) {
+      d.elements[el.id] = el;
+      d.order.push(el.id);
+    }
+  });
+  setSelection(els.map((e) => e.id));
+  zoomToSelection(1.2);
+  toast('success', `Baustein „${sn.title}“ eingefügt`, 'Ziehe ihn an die gewünschte Stelle.');
+}
+
+function zoomToSelection(maxZoom = 3): void {
+  const t = tab();
+  if (!t || !t.selection.length) return;
+  const b = contentBounds(t.doc, t.selection);
+  if (!b) return;
+  const { viewport } = useApp.getState().ui;
+  const pad = 80;
+  const zoom = Math.min(maxZoom, Math.max(0.1, Math.min((viewport.w - pad * 2) / Math.max(b.w, 40), (viewport.h - pad * 2) / Math.max(b.h, 40))));
+  setView({ zoom, x: viewport.w / 2 - (b.x + b.w / 2) * zoom, y: viewport.h / 2 - (b.y + b.h / 2) * zoom });
+}
 
 export const ACTIONS: Action[] = [
   // ── Datei
@@ -403,6 +460,19 @@ export const ACTIONS: Action[] = [
     }),
   ),
 
+  // ── Bausteine
+  ...SNIPPETS.map(
+    (sn): Action => ({
+      id: `insert.${sn.id}`,
+      label: `Baustein einfügen: ${sn.title}`,
+      group: 'Werkzeuge',
+      icon: Blocks,
+      keywords: `muster vorlage pattern ${sn.description}`,
+      enabled: hasTab,
+      run: () => insertSnippet(sn.id),
+    }),
+  ),
+
   // ── Ansicht
   { id: 'view.zoomIn', label: 'Vergrößern', group: 'Ansicht', shortcut: 'Strg++', keys: ['mod+=', 'mod++', '+', '='], icon: ZoomIn, enabled: hasTab, run: () => zoomAt(1.25) },
   { id: 'view.zoomOut', label: 'Verkleinern', group: 'Ansicht', shortcut: 'Strg+-', keys: ['mod+-', '-'], icon: ZoomOut, enabled: hasTab, run: () => zoomAt(0.8) },
@@ -419,6 +489,7 @@ export const ACTIONS: Action[] = [
       if (t) zoomAt(1 / t.view.zoom);
     },
   },
+  { id: 'view.zoomSelection', label: 'Auswahl anzeigen', group: 'Ansicht', shortcut: 'Umschalt+F', keys: ['shift+f'], icon: Focus, enabled: hasSelection, run: () => zoomToSelection() },
   { id: 'view.fit', label: 'Ganzes Netz anzeigen', group: 'Ansicht', shortcut: 'F', keys: ['f', 'mod+shift+f'], icon: Maximize, keywords: 'einpassen zoom port', enabled: hasTab, run: () => fitView() },
   { id: 'view.grid', label: 'Raster anzeigen', group: 'Ansicht', shortcut: "Strg+'", keys: ["mod+'"], icon: Grid3x3, enabled: hasTab, checked: () => !!docOf()?.settings.grid.visible, run: () => setGrid({ visible: !docOf()?.settings.grid.visible }) },
   { id: 'view.snap', label: 'Am Raster ausrichten', group: 'Ansicht', icon: Magnet, enabled: hasTab, checked: () => !!docOf()?.settings.grid.snapNet, run: () => { const on = !docOf()?.settings.grid.snapNet; setGrid({ snapNet: on, snapDecor: on }); } },

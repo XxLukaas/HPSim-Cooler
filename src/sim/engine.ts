@@ -307,10 +307,14 @@ export function timingLabel(t: TimingModel): string {
   }
 }
 
+/**
+ * Zahl im deutschen Format; Tausender werden mit schmalem Leerzeichen getrennt
+ * („7 075“ statt „7.075“), damit sie nicht mit Dezimalzahlen verwechselt werden.
+ */
 export function formatNumber(v: number, digits = 2): string {
-  if (!Number.isFinite(v)) return String(v);
-  if (Number.isInteger(v)) return v.toLocaleString('de-DE');
-  return v.toLocaleString('de-DE', { maximumFractionDigits: digits });
+  if (!Number.isFinite(v)) return v === Infinity ? '∞' : String(v);
+  const s = Number.isInteger(v) ? v.toLocaleString('de-DE') : v.toLocaleString('de-DE', { maximumFractionDigits: digits });
+  return s.replace(/\./g, '\u202f');
 }
 
 function sampleDelay(tr: CTransition, rng: Rng): number {

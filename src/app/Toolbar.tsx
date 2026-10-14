@@ -17,12 +17,15 @@ import {
   Copy,
   ClipboardPaste,
   Sparkles,
+  Blocks,
 } from 'lucide-react';
+import { openMenu } from '../components/ContextMenu';
+import { SNIPPETS } from '../editor/snippets';
 import { IconButton } from '../components/ui';
 import { formatNumber } from '../sim/engine';
 import { activeTab, setMode, setTool, useApp, type Mode } from '../store/appStore';
 import { setAnimate, setSpeed, simBack, simPause, simRandomStep, simReset, simRun, simStep, useSim } from '../store/simStore';
-import { isEnabled, runAction, TOOLS } from './actions';
+import { insertSnippet, isEnabled, runAction, TOOLS } from './actions';
 
 const MODES: { mode: Mode; label: string; icon: typeof Pencil; key: string }[] = [
   { mode: 'edit', label: 'Bearbeiten', icon: Pencil, key: 'F2' },
@@ -146,6 +149,24 @@ function EditControls() {
             testId={`tool-${t.tool}`}
           />
         ))}
+      </div>
+      <div className="toolbar-group">
+        <button
+          type="button"
+          className="btn sm ghost"
+          title="Fertige Netzmuster einfügen"
+          data-testid="snippets"
+          onClick={(e) => {
+            const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            openMenu(r.left, r.bottom + 6, [
+              { heading: 'Baustein einfügen' },
+              ...SNIPPETS.map((sn) => ({ label: `${sn.title} – ${sn.description}`, icon: Blocks, run: () => insertSnippet(sn.id), testId: `snippet-${sn.id}` })),
+            ]);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <Blocks size={16} /> Bausteine
+        </button>
       </div>
       <div className="toolbar-group">
         <IconButton icon={<Undo2 size={17} />} title="Rückgängig (Strg+Z)" disabled={!tab.past.length} onClick={() => runAction('edit.undo')} testId="undo" />

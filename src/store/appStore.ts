@@ -487,7 +487,8 @@ export function setTool(tool: Tool, locked = false): void {
 export function setMode(mode: Mode): void {
   const tab = activeTab();
   if (!tab || tab.mode === mode) return;
-  patchTab(tab.id, { mode });
+  // Beim Wechsel in Simulation/Analyse eine große Auswahl aufheben (wirkt sonst unruhig)
+  patchTab(tab.id, { mode, selection: mode !== 'edit' && tab.selection.length > 1 ? [] : tab.selection });
   if (mode !== 'edit') set({ tool: 'select' });
   set((s) => ({
     ui: {
