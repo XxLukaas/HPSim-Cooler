@@ -131,13 +131,13 @@ function reveal(doc: NetDoc | null, ids: readonly Id[]) {
 function StatTile({ label, value, sub, icon, title }: { label: string; value: string; sub?: string; icon: React.ReactNode; title?: string }) {
   return (
     <div className="ex-stat" title={title}>
-      <div className="ex-stat-icon">{icon}</div>
-      <div className="ex-stat-text">
-        <div className="ex-stat-value">{value}</div>
-        <div className="ex-stat-label">
-          {label}
-          {sub && <span className="ex-stat-sub"> · {sub}</span>}
-        </div>
+      <div className="ex-stat-top">
+        <span className="ex-stat-icon">{icon}</span>
+        <span className="ex-stat-value">{value}</span>
+      </div>
+      <div className="ex-stat-label">
+        {label}
+        {sub && <span className="ex-stat-sub"> · {sub}</span>}
       </div>
     </div>
   );

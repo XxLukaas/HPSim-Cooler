@@ -23,7 +23,7 @@ export const GROUP_HINTS: Record<GroupKey, { text: string; key?: string }> = {
   places: { text: 'Noch keine Stellen – Werkzeug „Stelle“', key: 'P' },
   transitions: { text: 'Noch keine Transitionen – Werkzeug „Transition“', key: 'T' },
   arcs: { text: 'Noch keine Kanten – Werkzeug „Kante“', key: 'K' },
-  drawings: { text: 'Keine Zeichnungen (Text, Rechteck, Linie …)' },
+  drawings: { text: 'Noch keine Zeichnungen' },
 };
 
 export type DrawingShape = 'rect' | 'roundrect' | 'ellipse' | 'line' | 'arrow' | 'polyline' | 'polygon' | 'text';

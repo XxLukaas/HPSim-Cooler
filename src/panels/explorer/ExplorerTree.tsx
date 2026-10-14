@@ -203,8 +203,10 @@ const ItemRow = memo(function ItemRow({ item, top, selected, cursor, tokens, vis
           title={`${fmtCount(shown)} Marke${shown === 1 ? '' : 'n'}${item.capacity > 0 ? ` von höchstens ${fmtCount(item.capacity)}` : ''}${mode === 'sim' ? ' (aktuell)' : ' (Anfangsmarkierung)'}`}
         >
           <span className="ex-token-dot" style={{ background: p.token }} />
-          {fmtCount(shown)}
-          {item.capacity > 0 && <span className="ex-cap">/{fmtCount(item.capacity)}</span>}
+          <span>
+            {fmtCount(shown)}
+            {item.capacity > 0 && <span className="ex-cap">/{fmtCount(item.capacity)}</span>}
+          </span>
         </span>
       );
       title += ` · ${fmtCount(shown)} Marke${shown === 1 ? '' : 'n'}${item.capacity > 0 ? ` · Kapazität ${fmtCount(item.capacity)}` : ''}`;
@@ -964,6 +966,7 @@ export const ExplorerTree = memo(function ExplorerTree({ focusToken }: { focusTo
         onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
         onKeyDown={onListKey}
         onMouseDown={() => setKbdNav(false)}
+        onMouseLeave={handlers.leave}
         onFocus={(e) => {
           if (e.target === e.currentTarget && cursorIndex < 0 && selection.length && keyIndex.has(selection[0])) setCursorKey(selection[0]);
         }}

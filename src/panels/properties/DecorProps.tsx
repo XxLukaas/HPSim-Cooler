@@ -41,7 +41,7 @@ function editAs<E extends DecorEl>(el: E, fn: (e: Draft<E>) => void, live?: stri
   else editDoc(apply);
 }
 
-function DecorGlyph({ el, p }: { el: DecorEl; p: Palette }) {
+export function DecorGlyph({ el, p }: { el: DecorEl; p: Palette }) {
   const stroke = el.type === 'text' ? el.color || p.text : el.stroke || p.shapeStroke;
   if (el.type === 'text') {
     return (

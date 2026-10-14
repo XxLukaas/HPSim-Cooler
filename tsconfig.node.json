@@ -15,5 +15,5 @@
     "noUnusedParameters": true,
     "types": ["node"]
   },
-  "include": ["vite.config.ts", "playwright.config.ts", "scripts", "e2e", "tests"]
+  "include": ["vite.config.ts", "playwright.config.ts", "scripts", "e2e"]
 }
