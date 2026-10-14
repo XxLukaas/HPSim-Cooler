@@ -134,7 +134,8 @@ export function analyze(doc: NetDoc, maxStates = 5000): AnalysisReport {
   const scc = stronglyConnectedComponents(graph.states.length, graph.out, graph.edges);
   let liveTransitions: number[] | null = null;
   if (complete && !graph.hasOmega) {
-    const compCount = Math.max(-1, ...scc) + 1;
+    let compCount = 0;
+    for (const c of scc) if (c + 1 > compCount) compCount = c + 1;
     const terminal = new Array<boolean>(compCount).fill(true);
     for (const e of graph.edges) if (scc[e.from] !== scc[e.to]) terminal[scc[e.from]] = false;
     const inside: Set<number>[] = Array.from({ length: compCount }, () => new Set());

@@ -240,6 +240,7 @@ export function useShortcuts(): void {
           e.preventDefault();
           (t as HTMLElement).blur();
           runAction('file.save');
+          return;
         }
         return;
       }
@@ -255,8 +256,27 @@ export function useShortcuts(): void {
       e.preventDefault();
       runAction(action.id);
     };
+    // Funktionstasten (F1–F12) erzeugen keine Zeichen – sie wirken auch aus Eingabefeldern heraus
+    // (Eingabefelder stoppen die Weitergabe, daher in der Capture-Phase), sonst lädt z. B. F5 die Seite neu.
+    const onFnKey = (e: KeyboardEvent) => {
+      if (!/^F([1-9]|1[0-2])$/.test(e.key)) return;
+      const t = e.target as HTMLElement | null;
+      const typing = !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable);
+      const st = useApp.getState();
+      if (!typing || st.dialog || st.ui.commandPalette) return;
+      const fn = actionForEvent(e);
+      if (!fn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      t.blur();
+      runAction(fn.id);
+    };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onFnKey, true);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onFnKey, true);
+    };
   }, []);
 }
 

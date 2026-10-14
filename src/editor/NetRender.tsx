@@ -58,6 +58,7 @@ export interface RenderState {
 const EMPTY = new Set<string>();
 
 export function formatTokens(n: number): string {
+  if (n === Infinity) return 'ω';
   if (n >= 1_000_000) return `${Math.round(n / 100_000) / 10}M`;
   if (n >= 10_000) return `${Math.round(n / 100) / 10}k`;
   return String(n);

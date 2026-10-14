@@ -40,6 +40,7 @@ import {
   type Tool,
 } from '../store/appStore';
 import { displayMarking, getSession, simFire, transitionVisuals, useSim } from '../store/simStore';
+import { stateMarking, stateVisuals, stepAnalysisState, useAnalysis } from '../store/analysisStore';
 import { explainEnabling, formatNumber, timingLabel } from '../sim/engine';
 import { Minimap } from './Minimap';
 import { NetContent, resolveLabelOffset, type RenderState } from './NetRender';
@@ -115,6 +116,7 @@ export function Canvas() {
   const minimap = useApp((s) => s.ui.minimap);
   const viewport = useApp((s) => s.ui.viewport);
   const sess = useSim((s) => (tab ? s.sessions[tab.id] : undefined));
+  const analysis = useAnalysis((s) => (tab && tab.mode === 'analysis' ? s.sessions[tab.id] : undefined));
   const p = paletteFor(theme);
   const hostRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
@@ -199,9 +201,13 @@ export function Canvas() {
         st.activeArcs = set;
       }
     }
+    if (mode === 'analysis' && analysis?.report && analysis.selected !== null && analysis.doc === doc) {
+      st.marking = stateMarking(analysis.report, analysis.selected);
+      st.trans = stateVisuals(analysis.report, analysis.selected);
+    }
     return st;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectionSet, highlight, mode, sess, simVersion]);
+  }, [selectionSet, highlight, mode, sess, simVersion, analysis, doc]);
   const content = useMemo(() => (doc ? <NetContent doc={doc} p={p} state={renderState} /> : null), [doc, p, renderState]);
   const handles = useMemo(() => (doc && mode === 'edit' ? handlesFor(doc, tab?.selection ?? []) : []), [doc, mode, tab?.selection]);
 
@@ -769,6 +775,7 @@ export function Canvas() {
             const el = doc.elements[d.clickId];
             setSelection([d.clickId]);
             if (mode === 'sim' && el?.type === 'transition') simFire(tab.id, el.id);
+            else if (mode === 'analysis' && el?.type === 'transition') stepAnalysisState(tab.id, el.id);
           } else clearSelection();
         }
         return;
@@ -957,7 +964,9 @@ export function Canvas() {
     mode === 'sim'
       ? 'Klicke auf eine aktivierte (grün umrandete) Transition, um sie zu schalten · Leertaste = Einzelschritt'
       : mode === 'analysis'
-        ? null
+        ? analysis?.selected != null
+          ? `Zustand M${analysis.selected} wird angezeigt · Klick auf eine grün umrandete Transition geht zum Folgezustand`
+          : null
         : arcPending
           ? 'Klicke auf das Ziel · Klick auf die freie Fläche setzt einen Knickpunkt · Esc bricht ab'
           : polyDraft
