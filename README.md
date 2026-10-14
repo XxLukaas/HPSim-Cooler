@@ -31,15 +31,15 @@ Alte `.hps`-Dateien des Original-HPSim lassen sich direkt öffnen.
 
 | Bereich | Was du bekommst |
 | --- | --- |
-| **Editor** | Stellen, Transitionen, Kanten (normal, Test, Inhibitor), Kapazitäten, Gewichte, Knickpunkte, Texte, Rechtecke, Ellipsen, Linien, Polygone, Gruppen, Ausrichten & Verteilen, Raster mit Einrasten, unbegrenztes Rückgängig/Wiederholen, Kopieren/Einfügen (auch zwischen Netzen), Mehrfachauswahl, Kontextmenüs, Befehlspalette (Strg+K) |
+| **Editor** | Stellen, Transitionen, Kanten (normal, Test, Inhibitor), Kapazitäten, Gewichte, Knickpunkte, Texte, Rechtecke, Ellipsen, Linien, Polygone, Gruppen, Ausrichten & Verteilen, Raster mit Einrasten, unbegrenztes Rückgängig/Wiederholen, Kopieren/Einfügen (auch zwischen Netzen), Mehrfachauswahl, Kontextmenüs, Befehlspalette (Strg+K), **automatisches Anordnen** (übersichtliches Schichtenlayout per Klick) |
 | **Schnell modellieren** | Kante ins Leere ziehen → das passende Gegenstück (Stelle/Transition) wird automatisch angelegt und verbunden. Doppelklick zum Umbenennen. Beschriftungen platzieren sich automatisch kantenfrei. |
 | **Simulation** | Einzelschritt, Lauf mit Animation, Schnelllauf, **Schritt zurück**, Token-Spiel per Klick auf Transitionen, Zufallsschritt, sofortige/deterministische/exponentielle/gleichverteilte Verzögerungen, drei Konfliktstrategien, reproduzierbare Zufallszahlen |
 | **Verstehen** | „Warum schaltet diese Transition nicht?“ – jede Bedingung wird im Klartext erklärt. Aktivierte Transitionen leuchten, laufende Verzögerungen zeigen einen Fortschrittsbalken, Marken wandern sichtbar über die Kanten. |
 | **Auswertung** | Protokoll, Live-Diagramm der Markenzahlen, Statistik (Min/Max/zeitgewichteter Mittelwert, Durchsatz), Verlaufstabelle, CSV-Export für Excel |
-| **Analyse** | Erreichbarkeits-/Überdeckungsgraph (zeichnet sich selbst), Beschränktheit, Sicherheit, Verklemmungen (mit Schaltfolge zum Nachspielen), tote Transitionen, Lebendigkeit, Reversibilität, P-/T-Invarianten, Inzidenzmatrix, Netzklassen, Netzprüfung |
-| **Dateien** | Eigenes Format `.hpsim` (JSON), **Import alter HPSim-Dateien `.hps`**, PNML-Import/-Export, Export als PNG, SVG, Text (Inzidenzmatrix wie im Original), Drucken, automatische Sitzungssicherung |
+| **Analyse** | Erreichbarkeits-/Überdeckungsgraph (zeichnet sich selbst, Zustände per Klick auf der Zeichenfläche durchwandern), Beschränktheit, Sicherheit, Verklemmungen (mit Schaltfolge zum Nachspielen), tote Transitionen, Lebendigkeit, Reversibilität, P-/T-Invarianten, Inzidenzmatrix, Netzklassen, Netzprüfung |
+| **Dateien** | Eigenes Format `.hpsim` (JSON), **Import alter HPSim-Dateien `.hps`**, PNML-Import/-Export (auch Dateien aus PIPE u. a.), Export als PNG, SVG, Text (Inzidenzmatrix wie im Original), Drucken, automatische Sitzungssicherung |
 | **Komfort** | Mehrere Netze als Tabs, Übersichtskarte, Zoom auf Mausposition, helles & dunkles Design, deutsche Oberfläche, Hilfe mit Grundlagen, interaktives Tutorial, viele Beispielnetze |
-| **Stabilität** | Jede Eingabe wird geprüft, beschädigte Dateien werden repariert statt abzustürzen, Fehler in einzelnen Bereichen werden abgefangen, deine Arbeit wird laufend gesichert. Über 100 automatische Tests. |
+| **Stabilität** | Jede Eingabe wird geprüft, beschädigte Dateien werden repariert statt abzustürzen, Fehler in einzelnen Bereichen werden abgefangen, deine Arbeit wird laufend gesichert. Rund 140 automatische Tests (Unit- und End-to-End-Tests), die bei jedem Push auf GitHub laufen. |
 
 ## Starten
 
@@ -65,11 +65,18 @@ Selbst erzeugen: `npm run build:standalone` (Ergebnis: `dist-standalone/index.ht
 ### Variante 2: Desktop-Programm
 
 Die Desktop-Version (Electron) bietet echte Datei-Dialoge und Dateizuordnungen
-(Doppelklick auf `.hpsim`/`.hps` öffnet HPSim Studio).
+(Doppelklick auf `.hpsim`, `.hps` oder `.pnml` öffnet HPSim Studio), speichert Dateien
+absturzsicher und fragt bei ungespeicherten Änderungen nach.
 
-- Fertige Installer (Windows `.exe`, macOS `.dmg`, Linux `.AppImage`) entstehen automatisch
-  über GitHub Actions, sobald ein Versions-Tag (`v2.0.0`) gepusht wird – siehe *Releases*.
-- Selbst bauen: `npm install && npm run desktop:build` (Ergebnis in `desktop/dist/`).
+- **Installer bauen lassen:** Auf GitHub unter *Actions → Desktop-Release → Run workflow*.
+  Nach ca. 10 Minuten liegen Windows-Installer und -Portable (`.exe`), macOS (`.dmg`) und
+  Linux (`.AppImage`, `.deb`) als Artefakte zum Herunterladen bereit.
+- **Release:** Wird ein Versions-Tag gepusht (z. B. `v2.0.0`), entsteht zusätzlich ein
+  GitHub-Release mit allen Installern und der Offline-HTML-Datei.
+- **Selbst bauen:** `npm install`, dann `npm --prefix desktop install` und
+  `npm run desktop:build` (Ergebnis in `desktop/dist/`). Starten ohne Installer: `npm run desktop:dev`.
+- Hinweis: Die Installer sind nicht signiert. Windows zeigt daher beim ersten Start eine
+  SmartScreen-Warnung („Weitere Informationen → Trotzdem ausführen“).
 
 ### Variante 3: Entwicklungsserver
 
@@ -115,7 +122,9 @@ Erreichbarkeitsgraphen (bei unbeschränkten Netzen den Überdeckungsgraphen nach
 Daraus werden Beschränktheit, Sicherheit, Verklemmungen, tote Transitionen, Lebendigkeit und
 Reversibilität bestimmt. Zusätzlich werden minimale P- und T-Invarianten (Farkas-Algorithmus)
 und die Inzidenzmatrix angezeigt. Gefundene Verklemmungen lassen sich per Klick in der
-Simulation nachspielen.
+Simulation nachspielen. Im Zustandsgraphen zeigt ein Klick auf einen Zustand dessen
+Markierung direkt auf der Zeichenfläche; ein Klick auf eine aktivierte Transition geht zum
+Folgezustand – so lässt sich der Zustandsraum Schritt für Schritt erkunden.
 
 ## Dateiformate
 
@@ -123,7 +132,7 @@ Simulation nachspielen.
 | --- | :-: | :-: | --- |
 | `.hpsim` | ✓ | ✓ | Eigenes Format (JSON), verlustfrei |
 | `.hps` | ✓ | – | Binärformat des Original-HPSim 1.x – Stellen, Transitionen, Kanten (inkl. Test/Inhibitor), Zeitmodelle, Beschriftungen, Texte, Rechtecke, Linien, Polygone, Gruppen und Einstellungen werden übernommen |
-| `.pnml` | ✓ | ✓ | Petri Net Markup Language (Austausch mit anderen Werkzeugen) |
+| `.pnml` | ✓ | ✓ | Petri Net Markup Language (ISO/IEC 15909-2) für den Austausch mit anderen Werkzeugen; Sonderfunktionen (Kapazitäten, Zeiten, Test-/Inhibitorkanten) bleiben über eine Erweiterung erhalten. Netze ohne Koordinaten werden automatisch angeordnet. |
 | `.png`, `.svg` | – | ✓ | Grafik-Export |
 | `.txt` | – | ✓ | Netz als Text: Inzidenzmatrix, Markierungsvektor, Kantentypen, Zeitmodelle |
 | `.csv` | – | ✓ | Markierungsverlauf der Simulation (Excel-tauglich) |
@@ -150,9 +159,13 @@ npm run typecheck        # TypeScript
 npm run lint             # ESLint
 npm run build            # Web-Version nach dist/
 npm run build:standalone # Einzelne HTML-Datei nach dist-standalone/
+npm run build:pages      # index.html/HPSim-Studio.html im Hauptordner aktualisieren
 npm run desktop:dev      # Desktop-Version starten
 npm run desktop:build    # Desktop-Installer bauen
 ```
+
+Bei jedem Push prüft GitHub Actions (`.github/workflows/ci.yml`) Typen, Lint, Unit- und
+End-to-End-Tests sowie den Build.
 
 Technik: React 19, TypeScript, Vite, Zustand + Immer, Electron (Desktop), Vitest & Playwright.
 

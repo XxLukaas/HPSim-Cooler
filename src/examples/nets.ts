@@ -48,7 +48,7 @@ export function producerConsumer(): NetDoc {
   b.frame(50, 50, 400, 210);
   b.frame(530, 50, 370, 290);
   b.text('Erzeuger', 70, 220, { fontSize: 15, bold: true });
-  b.text('Verbraucher', 550, 300, { fontSize: 15, bold: true });
+  b.text('Verbraucher', 750, 300, { fontSize: 15, bold: true });
   const eReady = b.place('bereit', 100, 160, 1);
   const produce = b.trans('produzieren', 200, 160, { timing: 'deterministic', delay: 2 });
   const eDone = b.place('fertig', 300, 160);
@@ -117,7 +117,9 @@ export function philosophers(): NetDoc {
   const N = 5;
   const X0 = 150;
   const DX = 210;
-  const forks = Array.from({ length: N }, (_, i) => b.place(`Gabel ${i + 1}`, X0 + i * DX - 100, 330, 1, { color: AMBER }));
+  // Gabeln liegen zwischen den Philosophen, etwas unterhalb von „nimmt rechts“, damit Beschriftungen Platz haben
+  const FY = 390;
+  const forks = Array.from({ length: N }, (_, i) => b.place(`Gabel ${i + 1}`, X0 + i * DX - 105, FY, 1, { color: AMBER, nameOffset: { x: -50, y: 0 } }));
   for (let i = 0; i < N; i++) {
     const x = X0 + i * DX;
     const think = b.place(`denkt ${i + 1}`, x, 100, 1);
@@ -145,14 +147,13 @@ export function philosophers(): NetDoc {
     } else {
       // Die rechte Gabel des letzten Philosophen ist Gabel 1 (runder Tisch)
       b.route(right, takeR, [
-        { x: forks[0].x, y: 600 },
-        { x: x + 30, y: 600 },
+        { x: forks[0].x + 8, y: 590 },
+        { x: x + 30, y: 590 },
         { x: x + 30, y: 340 },
       ]);
       b.route(done, right, [
-        { x: x, y: 620 },
-        { x: forks[0].x - 20, y: 620 },
-        { x: forks[0].x - 20, y: 350 },
+        { x: x, y: 610 },
+        { x: forks[0].x - 8, y: 610 },
       ]);
     }
   }
@@ -175,12 +176,14 @@ export function trafficLights(): NetDoc {
   const turnB = b.place('B ist dran', 360, 420);
   lights.forEach((l, i) => {
     const red = b.place(`Rot ${l.n}`, l.x, 100, 1, { color: RED });
-    const toGreen = b.htrans(`wird grün ${l.n}`, l.x, 180, { timing: 'deterministic', delay: 1 });
+    // Namen außen, Zeiten innen unterhalb – so kreuzen sich Beschriftungen und Kanten nicht
+    const labels = { nameOffset: { x: l.side * 64, y: 0 }, delayOffset: { x: -l.side * 34, y: 16 } };
+    const toGreen = b.htrans(`wird grün ${l.n}`, l.x, 180, { timing: 'deterministic', delay: 1, ...labels });
     const green = b.place(`Grün ${l.n}`, l.x, 260, 0, { color: GREEN });
-    const toYellow = b.htrans(`wird gelb ${l.n}`, l.x, 340, { timing: 'deterministic', delay: 5 });
+    const toYellow = b.htrans(`wird gelb ${l.n}`, l.x, 340, { timing: 'deterministic', delay: 5, ...labels });
     const yellow = b.place(`Gelb ${l.n}`, l.x, 420, 0, { color: AMBER });
-    const toRed = b.htrans(`wird rot ${l.n}`, l.x, 500, { timing: 'deterministic', delay: 2 });
-    const back = l.x + l.side * 90;
+    const toRed = b.htrans(`wird rot ${l.n}`, l.x, 500, { timing: 'deterministic', delay: 2, ...labels, nameOffset: { x: 0, y: 24 } });
+    const back = l.x + l.side * 125;
     b.arc(red, toGreen);
     b.arc(toGreen, green);
     b.arc(green, toYellow);
@@ -192,7 +195,7 @@ export function trafficLights(): NetDoc {
     ]);
     b.arc(i === 0 ? turnA : turnB, toGreen);
     b.arc(toRed, i === 0 ? turnB : turnA);
-    b.text(l.label, l.x - 70, 560, { fontSize: 14, bold: true });
+    b.text(l.label, l.x - 70, 570, { fontSize: 14, bold: true });
   });
   return b.done();
 }
@@ -211,7 +214,7 @@ export function machineWithFailures(): NetDoc {
   const busy = b.place('in Bearbeitung', 460, 160);
   const finish = b.trans('fertig', 580, 160, { timing: 'uniform', delay: 2, delayMax: 4 });
   const done = b.place('Fertigteile', 700, 160);
-  const idle = b.place('Maschine frei', 460, 300, 1, { color: GREEN });
+  const idle = b.place('Maschine frei', 460, 300, 1, { color: GREEN, nameOffset: { x: -72, y: 0 } });
   const fail = b.htrans('Ausfall', 380, 400, { timing: 'exponential', delay: 30 });
   const broken = b.place('defekt', 460, 480, 0, { color: RED });
   const repair = b.htrans('Reparatur', 540, 400, { timing: 'deterministic', delay: 6 });
@@ -258,7 +261,7 @@ export function testInhibitor(): NetDoc {
   b.arc(light, read, { kind: 'test' });
   // Inhibitor
   const parts = b.place('Teile', 530, 200, 5);
-  const move = b.trans('transportieren', 650, 200, { timing: 'deterministic', delay: 1 });
+  const move = b.trans('transportieren', 650, 200, { timing: 'deterministic', delay: 1, delayOffset: { x: 24, y: -26 } });
   const target = b.place('Ziel', 770, 200);
   const stop = b.place('Not-Aus', 650, 90);
   const button = b.place('Knopf', 820, 90, 1);
@@ -288,7 +291,7 @@ export function readersWriters(): NetDoc {
   b.arc(rIdle, rStart);
   b.arc(rStart, reading);
   b.arc(reading, rEnd);
-  b.route(rEnd, rIdle, [{ x: 40, y: 340 }, { x: 40, y: 100 }]);
+  b.route(rEnd, rIdle, [{ x: 0, y: 340 }, { x: 0, y: 100 }]);
   const wIdle = b.place('Schreiber bereit', 520, 100, 2);
   const wStart = b.htrans('beginnt Schreiben', 520, 180, { timing: 'exponential', delay: 6 });
   const writing = b.place('schreibt', 520, 260, 0, { color: RED });
@@ -296,7 +299,7 @@ export function readersWriters(): NetDoc {
   b.arc(wIdle, wStart);
   b.arc(wStart, writing);
   b.arc(writing, wEnd);
-  b.route(wEnd, wIdle, [{ x: 600, y: 340 }, { x: 600, y: 100 }]);
+  b.route(wEnd, wIdle, [{ x: 640, y: 340 }, { x: 640, y: 100 }]);
   const rights = b.place('Zugriffsrechte', 320, 260, 3, { color: GREEN });
   b.arc(rights, rStart);
   b.arc(rEnd, rights);
