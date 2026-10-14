@@ -1,0 +1,13 @@
+node_modules/
+dist/
+dist-standalone/
+desktop/dist/
+desktop/out/
+desktop/app/
+desktop/node_modules/
+test-results/
+playwright-report/
+*.log
+.DS_Store
+*.tsbuildinfo
+.vite/
