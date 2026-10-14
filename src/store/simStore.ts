@@ -428,6 +428,11 @@ export function simRun(tabId: string, mode: 'running' | 'fast'): void {
     toast('info', 'Verklemmung', 'Setze die Simulation zurück, um erneut zu starten.');
     return;
   }
+  const lim = sess.doc.settings.sim;
+  if ((lim.maxSteps > 0 && sess.state.step >= lim.maxSteps) || (lim.maxTime > 0 && sess.state.time >= lim.maxTime - 1e-9)) {
+    toast('info', 'Limit erreicht', 'Setze die Simulation zurück oder ändere das Limit unter Bearbeiten → Netz-Einstellungen.');
+    return;
+  }
   patch(tabId, () => ({ run: mode, status: null, replay: null }));
   if (mode === 'running') runLoop(tabId);
   else fastLoop(tabId);

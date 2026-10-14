@@ -120,7 +120,7 @@ const initialUi: UiState = {
   leftTab: 'explorer',
   bottomTab: 'log',
   analysisTab: 'overview',
-  bottomHeight: 240,
+  bottomHeight: 270,
   rightWidth: 320,
   leftWidth: 250,
   showStart: true,
