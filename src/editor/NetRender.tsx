@@ -169,10 +169,12 @@ interface PlaceProps {
   ay?: number;
   bx?: number;
   by?: number;
+  /** Simulationsansicht: volle Kapazität hervorheben */
+  live?: boolean;
 }
 
-export const PlaceView = memo(function PlaceView({ el, p, tokens, selected, highlighted, ax, ay, bx, by }: PlaceProps) {
-  const full = el.capacity > 0 && tokens >= el.capacity;
+export const PlaceView = memo(function PlaceView({ el, p, tokens, selected, highlighted, ax, ay, bx, by, live }: PlaceProps) {
+  const full = !!live && el.capacity > 0 && tokens >= el.capacity;
   const nameOff = el.nameOffset ?? (ax !== undefined && ay !== undefined ? { x: ax, y: ay } : defaultNameOffset(el));
   const capOff = el.capOffset ?? (bx !== undefined && by !== undefined ? { x: bx, y: by } : defaultSecondaryOffset(el));
   const layout = tokens <= 6 && el.r >= 9 ? tokenLayout(tokens, el.r) : [];
@@ -191,14 +193,12 @@ export const PlaceView = memo(function PlaceView({ el, p, tokens, selected, high
           strokeDasharray={selected ? '4 3' : undefined}
         />
       )}
-      <circle
-        cx={el.x}
-        cy={el.y}
-        r={el.r}
-        fill={p.placeFill}
-        stroke={full ? p.full : stroke}
-        strokeWidth={full ? 2.6 : 2}
-      />
+      <circle cx={el.x} cy={el.y} r={el.r} fill={p.placeFill} stroke={stroke} strokeWidth={2} />
+      {full && (
+        <circle cx={el.x} cy={el.y} r={el.r + 3.5} fill="none" stroke={p.full} strokeWidth={1.6} strokeDasharray="3 2.5" opacity={0.85}>
+          <title>Kapazität erreicht</title>
+        </circle>
+      )}
       {layout.map((o, i) => (
         <circle key={i} className="net-token" cx={el.x + o.x} cy={el.y + o.y} r={tokR} fill={p.token} />
       ))}
@@ -608,6 +608,7 @@ export function NetContent({ doc, p, state }: NetContentProps) {
             ay={sl?.name.y}
             bx={sl?.secondary.x}
             by={sl?.secondary.y}
+            live={!!state?.marking}
           />,
         );
         break;
