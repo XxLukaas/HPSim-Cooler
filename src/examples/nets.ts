@@ -22,7 +22,7 @@ export function gamblingMachine(): NetDoc {
   const running = b.place('Spiel läuft', 420, 220);
   const win = b.trans('Gewinn', 560, 140);
   const lose = b.trans('Verlust', 560, 300);
-  const bank = b.place('Kasse', 700, 220, 2);
+  const bank = b.place('Kasse', 700, 220, 2, { capacity: 1000, showCapacity: true });
   b.arc(coins, insert);
   b.arc(insert, running);
   b.arc(running, win);
